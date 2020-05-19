@@ -19,7 +19,7 @@
 
 
 
-运行DB.Browser.for.SQLite，创建一个数据，然后在菜单``工具`` -> ``加载扩展`` 中加载编译好的 libudbx.dll
+运行DB.Browser.for.SQLite，创建一个数据库，然后在菜单``工具`` -> ``加载扩展`` 中加载编译好的 libudbx.dll
 
 
 
