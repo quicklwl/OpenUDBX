@@ -97,7 +97,7 @@ typedef enum {
   /**
   * Annotation    supermap extend  
   */
-  GEOM_ANNOTATION= 900,
+  GEOM_ANNOTATION = 900,
 
 } geom_type_t;
 

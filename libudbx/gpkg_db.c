@@ -457,8 +457,8 @@ static int check(sqlite3 *db, const char *db_name, int flags, errorstream_t *err
   return result;
 }
 
-static int write_blob_header(binstream_t *stream, geom_blob_header_t *header, errorstream_t *error) {
-  return gpb_write_header(stream, header, error);
+static int write_blob_header(binstream_t *stream, geom_blob_header_t *header, geom_type_t geom_type, errorstream_t *error) {
+  return gpb_write_header(stream, header, geom_type, error);
 }
 
 static int read_blob_header(binstream_t *stream, geom_blob_header_t *header, errorstream_t *error) {

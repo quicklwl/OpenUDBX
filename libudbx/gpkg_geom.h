@@ -63,7 +63,7 @@ int gpb_read_header(binstream_t *stream, geom_blob_header_t *header, errorstream
  * @return SQLITE_OK if the header was successfully written\n
  *         SQLITE_IOERR if an I/O error occurred while writing the header
  */
-int gpb_write_header(binstream_t *stream, geom_blob_header_t *header, errorstream_t *error);
+int gpb_write_header(binstream_t *stream, geom_blob_header_t *header, geom_type_t geom_type, errorstream_t *error);
 
 /** @} */
 
