@@ -14,7 +14,19 @@
 
 标注对象主要存储标注内容以及标注的坐标。
 
+
+测试此功能需要用到 DB.Browser.for.SQLite 工具，这个工具下载地址为：``https://sqlitebrowser.org/``
+
+
+
+运行DB.Browser.for.SQLite，创建一个数据，然后在菜单``工具`` -> ``加载扩展`` 中加载编译好的 libudbx.dll
+
+
+
 ```
+--初始化空间库
+select GPKG_InitSpatialMetaData();
+
 --创建表
 create table province(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL);
 
@@ -40,3 +52,7 @@ select st_astext(geom) from province where province.id in (select rtree_province
 
 ```
 
+
+# 编译环境
+
+当前是在windows 7 + vs2015 编译通过
