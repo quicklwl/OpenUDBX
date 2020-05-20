@@ -1593,7 +1593,7 @@ static void ST_SRID(sqlite3_context *context, int nbArgs, sqlite3_value **args) 
 			sqlite3_result_error(context, "Error writing geometry blob header", -1);
 			goto exit;
 		}
-		if (spatialdb->write_blob_header(&FUNCTION_GEOM_ARG_STREAM(geomblob), &geomblob, FUNCTION_ERROR) != SQLITE_OK) {
+		if (spatialdb->write_blob_header(&FUNCTION_GEOM_ARG_STREAM(geomblob), &geomblob,0, FUNCTION_ERROR) != SQLITE_OK) {
 			if (error_count(FUNCTION_ERROR) == 0) {
 				error_append(FUNCTION_ERROR, "Error writing geometry blob header");
 			}
@@ -2232,6 +2232,50 @@ static void GPKG_CreateSpatialIndex(sqlite3_context *context, int nbArgs, sqlite
 	FUNCTION_FREE_TEXT_ARG(id_column_name);
 }
 
+static void GPKG_DropSpatialIndex(sqlite3_context *context, int nbArgs, sqlite3_value **args) {
+	spatialdb_t *spatialdb;
+	FUNCTION_TEXT_ARG(db_name);
+	FUNCTION_TEXT_ARG(table_name);
+	FUNCTION_TEXT_ARG(geometry_column_name);
+	FUNCTION_START(context);
+
+	spatialdb = (spatialdb_t *)sqlite3_user_data(context);
+	if (nbArgs == 3) {
+		FUNCTION_GET_TEXT_ARG(context, db_name, 0);
+		FUNCTION_GET_TEXT_ARG(context, table_name, 1);
+		FUNCTION_GET_TEXT_ARG(context, geometry_column_name, 2);
+	}
+	else {
+		FUNCTION_SET_TEXT_ARG(db_name, "main");
+		FUNCTION_GET_TEXT_ARG(context, table_name, 0);
+		FUNCTION_GET_TEXT_ARG(context, geometry_column_name, 1);
+	}
+
+	if (spatialdb->drop_spatial_index == NULL) {
+		error_append(FUNCTION_ERROR, "Spatial indexes are not supported in %s mode", spatialdb->name);
+		goto exit;
+	}
+
+	FUNCTION_START_TRANSACTION(__drop_spatial_index);
+
+	FUNCTION_RESULT = spatialdb->init_meta(FUNCTION_DB_HANDLE, db_name, FUNCTION_ERROR);
+	if (FUNCTION_RESULT == SQLITE_OK) {
+		FUNCTION_RESULT = spatialdb->drop_spatial_index(FUNCTION_DB_HANDLE, db_name, table_name, geometry_column_name,FUNCTION_ERROR);
+	}
+
+	FUNCTION_END_TRANSACTION(__drop_spatial_index);
+
+	if (FUNCTION_RESULT == SQLITE_OK) {
+		sqlite3_result_null(context);
+	}
+
+	FUNCTION_END(context);
+
+	FUNCTION_FREE_TEXT_ARG(db_name);
+	FUNCTION_FREE_TEXT_ARG(table_name);
+	FUNCTION_FREE_TEXT_ARG(geometry_column_name);
+}
+
 const spatialdb_t *spatialdb_detect_schema(sqlite3 *db) {
 	char message_buffer[256];
 	errorstream_t error;
@@ -2494,6 +2538,8 @@ int RegisterExtensionFunctions(sqlite3 *db) {
 	SPATIALDB_FUNCTION(db, GPKG, CreateTilesTable, 2, 0, spatialdb, &error);
 	SPATIALDB_FUNCTION(db, GPKG, CreateSpatialIndex, 3, 0, spatialdb, &error);
 	SPATIALDB_FUNCTION(db, GPKG, CreateSpatialIndex, 4, 0, spatialdb, &error);
+	SPATIALDB_FUNCTION(db, GPKG, DropSpatialIndex, 2, 0, spatialdb, &error);
+	SPATIALDB_FUNCTION(db, GPKG, DropSpatialIndex, 3, 0, spatialdb, &error);
 	SPATIALDB_FUNCTION(db, GPKG, SpatialDBType, 0, 0, spatialdb, &error);
 
 	int result;

@@ -87,7 +87,7 @@ int spb_read_header(binstream_t *stream, geom_blob_header_t *spb, errorstream_t 
   return SQLITE_OK;
 }
 
-int spb_write_header(binstream_t *stream, geom_blob_header_t *spb, errorstream_t *error) {
+int spb_write_header(binstream_t *stream, geom_blob_header_t *spb, geom_type_t geom_type, errorstream_t *error) {
   CHECK_ENV(spb, error)
 
   if (binstream_write_u8(stream, 0x00)) {
@@ -200,7 +200,7 @@ static int spb_end(const geom_consumer_t *consumer, errorstream_t *error) {
     writer->header.empty = 1;
   }
 
-  result = spb_write_header(stream, &writer->header, NULL);
+  result = spb_write_header(stream, &writer->header,writer->geom_type, NULL);
   if (result != SQLITE_OK) {
     goto exit;
   }

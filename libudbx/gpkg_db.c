@@ -794,6 +794,75 @@ static int read_geometry(binstream_t *stream, geom_consumer_t const *consumer, e
   return wkb_read_geometry(stream, WKB_ISO, consumer, error);
 }
 
+static int drop_spatial_index(sqlite3 *db, const char *db_name, const char *table_name, const char *geometry_column_name, errorstream_t *error) {
+	int result = SQLITE_OK;
+	char *index_table_name = NULL;
+	int exists = 0;
+
+	index_table_name = sqlite3_mprintf("rtree_%s_%s", table_name, geometry_column_name);
+	if (index_table_name == NULL) {
+		result = SQLITE_NOMEM;
+		goto exit;
+	}
+
+	// Check if the target table exists
+	exists = 0;
+	result = sql_check_table_exists(db, db_name, index_table_name, &exists);
+	if (result != SQLITE_OK) {
+		error_append(error, "Could not check if index table %s.%s exists: %s", db_name, index_table_name, sqlite3_errmsg(db));
+		goto exit;
+	}
+
+	if (exists) {
+		result = sql_exec(db, "DROP TRIGGER \"%w\".\"rtree_%w_%w_insert\"; ", db_name, table_name, geometry_column_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree insert trigger: %s", sqlite3_errmsg(db));
+			goto exit;
+		}
+
+		result = sql_exec(db, "DROP TRIGGER \"%w\".\"rtree_%w_%w_update1\"; ", db_name, table_name, geometry_column_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree update1 trigger: %s", sqlite3_errmsg(db));
+			goto exit;
+		}
+
+		result = sql_exec(db, "DROP TRIGGER \"%w\".\"rtree_%w_%w_update2\"; ", db_name, table_name, geometry_column_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree update2 trigger: %s", sqlite3_errmsg(db));
+			goto exit;
+		}
+
+		result = sql_exec(db, "DROP TRIGGER \"%w\".\"rtree_%w_%w_update3\"; ", db_name, table_name, geometry_column_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree update3 trigger: %s", sqlite3_errmsg(db));
+			goto exit;
+		}
+
+		result = sql_exec(db, "DROP TRIGGER \"%w\".\"rtree_%w_%w_update4\"; ", db_name, table_name, geometry_column_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree update4 trigger: %s", sqlite3_errmsg(db));
+			goto exit;
+		}
+
+		result = sql_exec(db, "DROP TRIGGER \"%w\".\"rtree_%w_%w_delete\"; ", db_name, table_name, geometry_column_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree delete trigger: %s", sqlite3_errmsg(db));
+			goto exit;
+		}
+
+		result = sql_exec(db, "DROP TABLE \"%w\".\"%w\"; ", db_name, index_table_name);
+		if (result != SQLITE_OK) {
+			error_append(error, "Could not drop rtree table %s.%s: %s", db_name, index_table_name, sqlite3_errmsg(db));
+			goto exit;
+		}
+	}
+
+exit:
+	sqlite3_free(index_table_name);
+	return result;
+
+}
+
 static const spatialdb_t GEOPACKAGE = {
   "GeoPackage",
   NULL,
@@ -809,7 +878,8 @@ static const spatialdb_t GEOPACKAGE = {
   create_spatial_index,
   fill_envelope,
   read_geometry_header,
-  read_geometry
+  read_geometry,
+  drop_spatial_index
 };
 
 const spatialdb_t *spatialdb_geopackage_schema() {

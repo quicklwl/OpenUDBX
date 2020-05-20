@@ -335,8 +335,8 @@ static int spl4_check(sqlite3 *db, const char *db_name, int check_flags, errorst
   return result;
 }
 
-static int write_blob_header(binstream_t *stream, geom_blob_header_t *header, errorstream_t *error) {
-  return spb_write_header(stream, header, error);
+static int write_blob_header(binstream_t *stream, geom_blob_header_t *header, geom_type_t geom_type, errorstream_t *error) {
+  return spb_write_header(stream, header,geom_type, error);
 }
 
 static int read_blob_header(binstream_t *stream, geom_blob_header_t *header, errorstream_t *error) {
@@ -821,6 +821,10 @@ exit:
   return result;
 }
 
+static int drop_spatial_index(sqlite3 *db, const char *db_name, const char *table_name, const char *geometry_column_name, errorstream_t *error) {
+	return SQLITE_OK;
+}
+
 /*
  * (indx_table_name text, \"%w\" int, geometry blob)
  */
@@ -888,7 +892,8 @@ static const spatialdb_t SPATIALITE2 = {
   create_spatial_index,
   fill_envelope,
   read_geometry_header,
-  read_geometry
+  read_geometry,
+  drop_spatial_index
 };
 
 static const spatialdb_t SPATIALITE3 = {
@@ -906,7 +911,8 @@ static const spatialdb_t SPATIALITE3 = {
   create_spatial_index,
   fill_envelope,
   read_geometry_header,
-  read_geometry
+  read_geometry,
+  drop_spatial_index
 };
 
 static const spatialdb_t SPATIALITE4 = {
@@ -924,7 +930,8 @@ static const spatialdb_t SPATIALITE4 = {
   create_spatial_index,
   fill_envelope,
   read_geometry_header,
-  read_geometry
+  read_geometry,
+  drop_spatial_index
 };
 
 const spatialdb_t *spatialdb_spatialite2_schema() {

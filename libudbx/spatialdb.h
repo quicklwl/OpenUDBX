@@ -45,7 +45,7 @@ typedef struct spatialdb {
    * Writes the spatial database specific blob header to the given stream. When this function exits the stream
    * will be positioned directly after the header.
    */
-  int(*write_blob_header)(binstream_t *stream, geom_blob_header_t *header, errorstream_t *error);
+  int(*write_blob_header)(binstream_t *stream, geom_blob_header_t *header, geom_type_t geom_type, errorstream_t *error);
   /**
    * Reads the spatial database specific blob header from the given stream. When this function exits the stream
    * will be positioned directly after the header.
@@ -94,6 +94,12 @@ typedef struct spatialdb {
    * immediately after the geometry body.
    */
   int(*read_geometry)(binstream_t *stream, geom_consumer_t const *consumer, errorstream_t *error);
+
+  /**
+  * Drop a spatial index on a given table column.
+  */
+  int(*drop_spatial_index)(sqlite3 *db, const char *db_name, const char *table_name, const char *geometry_column_name, errorstream_t *error);
+
 } spatialdb_t;
 
 /**
