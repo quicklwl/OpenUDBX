@@ -44,6 +44,38 @@ static table_info_t gpkg_spatial_ref_sys = {
   gpkg_spatial_ref_sys_data, 3
 };
 
+static column_info_t gpkgsm_par_point_type_columns[] = {
+  {"ppt_name", "TEXT", N, SQL_NOT_NULL, NULL},
+  {"ppt_id", "INTEGER", N, SQL_NOT_NULL | SQL_PRIMARY_KEY, NULL},
+  {NULL, NULL, N, 0, NULL}
+};
+static value_t gpkgsm_par_point_type_data[] = {
+  T("None"), I(0),
+  T("SurveyPoint"), I(1),
+  T("HeightMark"), I(2),
+  T("EnterDtm"), I(4),
+  T("NewPoint"), I(8),
+  T("TurnPoint"), I(16),
+  T("BreakPoint"), I(32),
+  T("LTypeLine"), I(64),
+  T("LTypeCurve"), I(128),
+  T("LTypeArc"), I(192),
+  T("FlagPoint1"), I(256),
+  T("FlagPoint2"), I(512),
+  T("FlagPoint3"), I(1024),
+  T("FlagPoint4"), I(2048),
+  T("AttachPoint"), I(4096),
+  T("FormicatePoint"), I(8192),
+  T("SmoothPoint"), I(16384),
+  T("FrameworkPoint"), I(32768),
+  T("UnknownPoint"), I(61440)
+};
+static table_info_t gpkgsm_par_point_type = {
+  "gpkgsm_par_point_type",
+  gpkgsm_par_point_type_columns,
+  gpkgsm_par_point_type_data, 19
+};
+
 static column_info_t gpkg_contents_columns[] = {
   {"table_name", "TEXT", N, SQL_NOT_NULL | SQL_PRIMARY_KEY, NULL},
   {"data_type", "TEXT", N, SQL_NOT_NULL, NULL},
@@ -207,6 +239,7 @@ static const table_info_t *const gpkg_tables[] = {
   &gpkg_geometry_columns,
   &gpkg_tile_matrix_set,
   &gpkg_tile_matrix,
+  &gpkgsm_par_point_type,
   NULL
 };
 

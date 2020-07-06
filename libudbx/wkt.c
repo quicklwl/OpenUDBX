@@ -83,8 +83,20 @@ static int wkt_begin_geometry(const geom_consumer_t *consumer, const geom_header
         result = strbuf_append(&writer->strbuf, "CurvePolygon ");
         break;
 	  case GEOM_ANNOTATION:
-		  result = strbuf_append(&writer->strbuf, "Annotation ");
-		  break;
+		result = strbuf_append(&writer->strbuf, "Annotation ");
+		break;
+	  case GEOM_PARAMETRICPOINT:
+		result = strbuf_append(&writer->strbuf, "ParametricPoint ");
+		break;
+	  case GEOM_PARAMETRICLINESTRING:
+		result = strbuf_append(&writer->strbuf, "ParametricLineString ");
+		break;
+	  case GEOM_PARAMETRICPOLYGON:
+		result = strbuf_append(&writer->strbuf, "ParametricPolygon ");
+		break;
+	  case GEOM_PARAMETRICANNOTATION:
+		result = strbuf_append(&writer->strbuf, "ParametricAnnotation ");
+		break;
       default:
         result = SQLITE_ERROR;
         break;
@@ -274,6 +286,10 @@ typedef enum {
   WKT_EOF,
   WKT_ERROR,
   WKT_ANNOTATION,
+  WKT_PARAMETRICPOINT,
+  WKT_PARAMETRICLINESTRING,
+  WKT_PARAMETRICPOLYGON,
+  WKT_PARAMETRICANNOTATION,
   WKT_TEXT
 } wkt_token;
 
@@ -362,10 +378,14 @@ static void wkt_tokenizer_next(wkt_tokenizer_t *tok) {
       } else if (token_length == 14) {
         CHECK_TOKEN_1(CIRCULARSTRING)
       } else if (token_length == 15) {
-        CHECK_TOKEN_1(MULTILINESTRING)
-      } else if (token_length == 18) {
+		CHECK_TOKEN_2(MULTILINESTRING, PARAMETRICPOINT)
+	  } else if (token_length == 17) {
+		CHECK_TOKEN_1(PARAMETRICPOLYGON)
+	  } else if (token_length == 18) {
         CHECK_TOKEN_1(GEOMETRYCOLLECTION)
-      } else {
+	  } else if (token_length == 20) {
+		CHECK_TOKEN_2(PARAMETRICLINESTRING, PARAMETRICANNOTATION)
+	  } else {
         goto error;
       }
 #undef CHECK_TOKEN
@@ -472,6 +492,68 @@ exit:
   return result;
 }
 
+static int wkt_read_par_point(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
+	int result = SQLITE_OK;
+	double coords[GEOM_MAX_COORD_SIZE];
+
+	for (uint32_t i = 0; i < header->coord_size; i++) {
+		if (tok->token != WKT_NUMBER) {
+			if (error) {
+				wkt_tokenizer_error(tok, error, "Expected number");
+			}
+			result = SQLITE_IOERR;
+			goto exit;
+		}
+
+		coords[i] = tok->token_value;
+		wkt_tokenizer_next(tok);
+	}
+
+	if (consumer->coordinates) {
+		result = consumer->coordinates(consumer, header, 1, coords, 0, error);
+		if (result != SQLITE_OK) {
+			goto exit;
+		}
+	}
+
+	if (tok->token != WKT_TEXT) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected parametric point type");
+		}
+		result = SQLITE_IOERR;
+		goto exit;
+	}
+	else {
+		if (consumer->data) {
+			result = consumer->data(consumer, header, tok->token_length - 1, tok->token_start + 1, error);
+			if (result != SQLITE_OK) {
+				goto exit;
+			}
+		}
+		wkt_tokenizer_next(tok);
+	}
+
+	if (tok->token != WKT_TEXT) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected parametric point name");
+		}
+		result = SQLITE_IOERR;
+		goto exit;
+	}
+	else {
+		if (consumer->data) {
+			result = consumer->data(consumer, header, tok->token_length - 1, tok->token_start + 1, error);
+			if (result != SQLITE_OK) {
+				goto exit;
+			}
+		}
+		wkt_tokenizer_next(tok);
+	}
+
+exit:
+	return result;
+}
+
 #define COORD_BATCH_SIZE 10
 
 static int wkt_read_points(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
@@ -545,6 +627,75 @@ exit:
   return result;
 }
 
+static int wkt_read_par_points(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
+	int result = SQLITE_OK;
+	double coords[GEOM_MAX_COORD_SIZE];
+
+	int more_coords;
+	do {
+		for (uint32_t i = 0; i < header->coord_size; i++) {
+			if (tok->token != WKT_NUMBER) {
+				if (error) {
+					wkt_tokenizer_error(tok, error, "Expected number");
+				}
+				result = SQLITE_IOERR;
+				goto exit;
+			}
+
+			coords[i] = tok->token_value;
+			wkt_tokenizer_next(tok);
+		}
+
+		if (consumer->coordinates) {
+			result = consumer->coordinates(consumer, header, 1, coords, 0, error);
+			if (result != SQLITE_OK) {
+				goto exit;
+			}
+		}
+
+		if (tok->token != WKT_TEXT) {
+			if (error) {
+				wkt_tokenizer_error(tok, error, "Expected parametric point type");
+			}
+			result = SQLITE_IOERR;
+			goto exit;
+		}
+		else {
+			if (consumer->data) {
+				result = consumer->data(consumer, header, tok->token_length - 1, tok->token_start + 1, error);
+				if (result != SQLITE_OK) {
+					goto exit;
+				}
+			}
+			wkt_tokenizer_next(tok);
+		}
+
+		if (tok->token != WKT_TEXT) {
+			if (error) {
+				wkt_tokenizer_error(tok, error, "Expected parametric point name");
+			}
+			result = SQLITE_IOERR;
+			goto exit;
+		}
+		else {
+			if (consumer->data) {
+				result = consumer->data(consumer, header, tok->token_length - 1, tok->token_start + 1, error);
+				if (result != SQLITE_OK) {
+					goto exit;
+				}
+			}
+			wkt_tokenizer_next(tok);
+		}
+
+		more_coords = tok->token == WKT_COMMA;
+		if (more_coords) {
+			wkt_tokenizer_next(tok);
+		}
+	} while (more_coords);
+
+exit:
+	return result;
+}
 
 static int wkt_read_point_text(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
   if (tok->token == WKT_EMPTY) {
@@ -930,20 +1081,196 @@ static int wkt_read_annotation_text(wkt_tokenizer_t *tok, const geom_header_t *h
 		wkt_tokenizer_next(tok);
 	}
 
-	int res = wkt_read_points(tok, header, consumer, error);
+	int res = wkt_read_point(tok, header, consumer, error);
 	if (res != SQLITE_OK) {
 		return res;
 	}
 
-	if (tok->token == WKT_TEXT)
-	{
-		if (consumer->data)
-		{
-			consumer->data(consumer, header, tok->token_length-1, tok->token_start+1, error);
+	if (tok->token != WKT_TEXT) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected annotation");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		if (consumer->data) {
+			res = consumer->data(consumer, header, tok->token_length - 1, tok->token_start + 1, error);
+			if (res != SQLITE_OK) {
+				return res;
+			}
+		}
+		wkt_tokenizer_next(tok);
+	}
+
+	if (tok->token != WKT_RPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected ')'");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+}
+
+static int wkt_read_parametricpoint_text(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
+	if (tok->token == WKT_EMPTY) {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+
+	if (tok->token != WKT_LPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected '(' or 'empty'");
+		}
+		return SQLITE_IOERR;
+	} else {
+		wkt_tokenizer_next(tok);
+	}
+
+	int res = wkt_read_par_point(tok, header, consumer, error);
+	if (res != SQLITE_OK) {
+		return res;
+	}
+
+	if (tok->token != WKT_RPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected ')'");
+		}
+		return SQLITE_IOERR;
+	} else {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+}
+
+static int wkt_read_parametriclinestring_text(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
+	if (tok->token == WKT_EMPTY) {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+
+	if (tok->token != WKT_LPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected '(' or 'empty'");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		wkt_tokenizer_next(tok);
+	}
+
+	int res = wkt_read_par_points(tok, header, consumer, error);
+	if (res != SQLITE_OK) {
+		return res;
+	}
+
+	if (tok->token != WKT_RPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected ')'");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+}
+
+static int wkt_read_parametricpolygon_text(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
+	if (tok->token == WKT_EMPTY) {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+
+	if (tok->token != WKT_LPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected '(' or 'empty'");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		wkt_tokenizer_next(tok);
+	}
+
+	geom_header_t ring_header;
+	ring_header.geom_type = GEOM_PARAMETRICLINESTRING;
+	ring_header.coord_type = header->coord_type;
+	ring_header.coord_size = header->coord_size;
+
+	int more_rings;
+	do {
+		int res = consumer->begin_geometry(consumer, &ring_header, error);
+		if (res != SQLITE_OK) {
+			return res;
+		}
+
+		res = wkt_read_parametriclinestring_text(tok, &ring_header, consumer, error);
+		if (res != SQLITE_OK) {
+			return res;
+		}
+
+		res = consumer->end_geometry(consumer, &ring_header, error);
+		if (res != SQLITE_OK) {
+			return res;
+		}
+
+		more_rings = tok->token == WKT_COMMA;
+		if (more_rings) {
 			wkt_tokenizer_next(tok);
 		}
+	} while (more_rings);
+
+	if (tok->token != WKT_RPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected ')'");
+		}
+		return SQLITE_IOERR;
 	}
-	
+	else {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+}
+
+static int wkt_read_parametricannotation_text(wkt_tokenizer_t *tok, const geom_header_t *header, const geom_consumer_t *consumer, errorstream_t *error) {
+	if (tok->token == WKT_EMPTY) {
+		wkt_tokenizer_next(tok);
+		return SQLITE_OK;
+	}
+
+	if (tok->token != WKT_LPAREN) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected '(' or 'empty'");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		wkt_tokenizer_next(tok);
+	}
+
+	int res = wkt_read_par_point(tok, header, consumer, error);
+	if (res != SQLITE_OK) {
+		return res;
+	}
+
+	if (tok->token != WKT_TEXT) {
+		if (error) {
+			wkt_tokenizer_error(tok, error, "Expected parametric annotation");
+		}
+		return SQLITE_IOERR;
+	}
+	else {
+		if (consumer->data) {
+			res = consumer->data(consumer, header, tok->token_length - 1, tok->token_start + 1, error);
+			if (res != SQLITE_OK) {
+				return res;
+			}
+		}
+		wkt_tokenizer_next(tok);
+	}
+
 	if (tok->token != WKT_RPAREN) {
 		if (error) {
 			wkt_tokenizer_error(tok, error, "Expected ')'");
@@ -1179,13 +1506,29 @@ static int get_read_body_function(wkt_tokenizer_t *tok, wkt_token geom_token, re
       *read_body = wkt_read_compoundcurve_text;
       break;
     case WKT_CIRCULARSTRING:
-      *geometry_type = GEOM_CIRCULARSTRING;
+	  *geometry_type = GEOM_CIRCULARSTRING;
       *read_body = wkt_read_circularstring_text;
       break;
 	case WKT_ANNOTATION:
-		*geometry_type = GEOM_ANNOTATION;
-		*read_body = wkt_read_annotation_text;
-		break;
+	  *geometry_type = GEOM_ANNOTATION;
+	  *read_body = wkt_read_annotation_text;
+	  break;
+	case WKT_PARAMETRICPOINT:
+	  *geometry_type = GEOM_PARAMETRICPOINT;
+	  *read_body = wkt_read_parametricpoint_text;
+	  break;
+	case WKT_PARAMETRICLINESTRING:
+	  *geometry_type = GEOM_PARAMETRICLINESTRING;
+	  *read_body = wkt_read_parametriclinestring_text;
+	  break;
+	case WKT_PARAMETRICPOLYGON:
+	  *geometry_type = GEOM_PARAMETRICPOLYGON;
+	  *read_body = wkt_read_parametricpolygon_text;
+	  break;
+	case WKT_PARAMETRICANNOTATION:
+	  *geometry_type = GEOM_PARAMETRICANNOTATION;
+	  *read_body = wkt_read_parametricannotation_text;
+	  break;
     default:
       if (error) {
         wkt_tokenizer_error(tok, error, "Unsupported WKT geometry type");

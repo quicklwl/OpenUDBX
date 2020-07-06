@@ -166,7 +166,9 @@ int gpb_write_header(binstream_t *stream, geom_blob_header_t *gpb, geom_type_t g
   }
   uint8_t endian = binstream_get_endianness(stream) == LITTLE ? 1 : 0;
   uint8_t empty = gpb->empty == 0 ? 0 : 1;
-  uint8_t extended = geom_type == GEOM_ANNOTATION ? 1 : 0;
+  uint8_t extended = (geom_type == GEOM_ANNOTATION || geom_type == GEOM_PARAMETRICPOINT ||
+	  geom_type == GEOM_PARAMETRICLINESTRING || geom_type == GEOM_PARAMETRICPOLYGON ||
+	  geom_type == GEOM_PARAMETRICANNOTATION) ? 1 : 0;
 
   uint8_t flags = (extended << 5) | (empty << 4) | (envelope << 1) | endian;
   if (binstream_write_u8(stream, flags)) {
@@ -278,7 +280,7 @@ exit:
 
 static int gpb_data(const geom_consumer_t *consumer, const geom_header_t *header, size_t data_count, const char *pdata,  errorstream_t *error) {
 	int result = SQLITE_OK;
-	if (data_count <= 0) {
+	if (data_count < 0) {
 		goto exit;
 	}
 

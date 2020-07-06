@@ -458,6 +458,18 @@ int geom_type_name(geom_type_t geom_type, const char **geom_type_name)
 	case GEOM_ANNOTATION:
 	  *geom_type_name = "Annotation";
 	  break;
+	case GEOM_PARAMETRICPOINT:
+	  *geom_type_name = "ParametricPoint";
+	  break;
+	case GEOM_PARAMETRICLINESTRING:
+	  *geom_type_name = "ParametricLineString";
+	  break;
+	case GEOM_PARAMETRICPOLYGON:
+	  *geom_type_name = "ParametricPolygon";
+	  break;
+	case GEOM_PARAMETRICANNOTATION:
+	  *geom_type_name = "ParametricAnnotation";
+	  break;
     default:
       *geom_type_name = NULL;
       result = SQLITE_ERROR;
@@ -557,9 +569,26 @@ int geom_type_from_string(const char *type_name, geom_type_t *type) {
     geom_type = GEOM_CIRCULARSTRING;
   } else if (sqlite3_strnicmp(type_name, "compoundcurve", 14) == 0) {
     geom_type = GEOM_COMPOUNDCURVE;
-  }
-  else if (sqlite3_strnicmp(type_name, "annotation", 14) == 0) {
-	  geom_type = GEOM_ANNOTATION;
+  } else if (sqlite3_strnicmp(type_name, "annotation", 11) == 0) {
+	geom_type = GEOM_ANNOTATION;
+  } else if (sqlite3_strnicmp(type_name, "parametric", 10) == 0) {
+	const char *remainder = type_name + 10;
+	if (sqlite3_strnicmp(remainder, "annotation", 11) == 0) {
+	  geom_type = GEOM_PARAMETRICANNOTATION;
+	} else if (sqlite3_strnicmp(remainder, "linestring", 11) == 0) {
+	  geom_type = GEOM_PARAMETRICLINESTRING;
+	} else if (sqlite3_strnicmp(remainder, "po", 2) == 0) {
+	  remainder = remainder + 2;
+	  if (sqlite3_strnicmp(remainder, "int", 4) == 0) {
+		geom_type = GEOM_PARAMETRICPOINT;
+	  } else if (sqlite3_strnicmp(remainder, "lygon", 6) == 0) {
+		geom_type = GEOM_PARAMETRICPOLYGON;
+	  } else {
+		result = SQLITE_ERROR;
+	  }
+	} else {
+	  result = SQLITE_ERROR;
+	}
   } else {
     result = SQLITE_ERROR;
   }
@@ -584,18 +613,22 @@ static int geom_parent_type(geom_type_t type, geom_type_t *super_type) {
     case GEOM_SURFACE:
     case GEOM_GEOMETRYCOLLECTION:
 	case GEOM_ANNOTATION:
+	case GEOM_PARAMETRICPOINT:
+	case GEOM_PARAMETRICANNOTATION:
       *super_type = GEOM_GEOMETRY;
       break;
     case GEOM_LINESTRING:
     case GEOM_CIRCULARSTRING:
     case GEOM_COMPOUNDCURVE:
     case GEOM_LINEARRING:
+	case GEOM_PARAMETRICLINESTRING:
       *super_type = GEOM_CURVE;
       break;
     case GEOM_CURVEPOLYGON:
       *super_type = GEOM_SURFACE;
       break;
     case GEOM_POLYGON:
+	case GEOM_PARAMETRICPOLYGON:
       *super_type = GEOM_CURVEPOLYGON;
       break;
     case GEOM_MULTISURFACE:

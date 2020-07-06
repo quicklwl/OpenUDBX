@@ -40,7 +40,11 @@
 #define WKB_CIRCULARSTRING 8
 #define WKB_COMPOUNDCURVE 9
 #define WKB_CURVEPOLYGON 10
-#define WKB_ANNOTATION  50
+#define WKB_ANNOTATION 50
+#define WKB_PARAMETRICPOINT 51
+#define WKB_PARAMETRICLINESTRING 52
+#define WKB_PARAMETRICPOLYGON 53
+#define WKB_PARAMETRICANNOTATION 54
 
 typedef struct {
   geom_consumer_t consumer;
@@ -126,8 +130,20 @@ int wkb_fill_geom_header(uint32_t wkb_type, geom_header_t *header, errorstream_t
       header->geom_type = GEOM_CURVEPOLYGON;
       break;
 	case WKB_ANNOTATION:
-		header->geom_type = GEOM_ANNOTATION;
-		break;
+	  header->geom_type = GEOM_ANNOTATION;
+	  break;
+	case WKB_PARAMETRICPOINT:
+	  header->geom_type = GEOM_PARAMETRICPOINT;
+	  break;
+	case WKB_PARAMETRICLINESTRING:
+	  header->geom_type = GEOM_PARAMETRICLINESTRING;
+	  break;
+	case WKB_PARAMETRICPOLYGON:
+	  header->geom_type = GEOM_PARAMETRICPOLYGON;
+	  break;
+	case WKB_PARAMETRICANNOTATION:
+	  header->geom_type = GEOM_PARAMETRICANNOTATION;
+	  break;
     default:
       if (error) {
         error_append(error, "Unsupported WKB geometry type: %d", wkb_type);
@@ -214,8 +230,20 @@ static int read_wkb_geometry_header(binstream_t *stream, wkb_dialect dialect, ge
       header->geom_type = GEOM_CURVEPOLYGON;
       break;
 	case WKB_ANNOTATION:
-		header->geom_type = GEOM_ANNOTATION;
-		break;
+	  header->geom_type = GEOM_ANNOTATION;
+	  break;
+	case WKB_PARAMETRICPOINT:
+	  header->geom_type = GEOM_PARAMETRICPOINT;
+	  break;
+	case WKB_PARAMETRICLINESTRING:
+	  header->geom_type = GEOM_PARAMETRICLINESTRING;
+	  break;
+	case WKB_PARAMETRICPOLYGON:
+	  header->geom_type = GEOM_PARAMETRICPOLYGON;
+	  break;
+	case WKB_PARAMETRICANNOTATION:
+	  header->geom_type = GEOM_PARAMETRICANNOTATION;
+	  break;
     default:
       if (error) {
         error_append(error, "Unsupported WKB geometry type: %d", type);
@@ -294,6 +322,73 @@ static int read_points(binstream_t *stream, wkb_dialect dialect, const geom_cons
   }
 
   return SQLITE_OK;
+}
+
+static int read_par_points(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, uint32_t point_count, errorstream_t *error) {
+	for (uint32_t i = 0; i < point_count; i++) {
+		int res = read_point(stream, dialect, consumer, header, error);
+		if (res != SQLITE_OK) {
+			return res;
+		}
+
+		if (consumer->data) {
+			uint32_t par_point_type_length;
+			if (binstream_read_u32(stream, &par_point_type_length) != SQLITE_OK) {
+				if (error) {
+					error_append(error, "Error reading parametric point type length");
+				}
+				return SQLITE_IOERR;
+			}
+			if (par_point_type_length >= 0) {
+				uint8_t *data = (uint8_t *)sqlite3_malloc((int)((par_point_type_length + 1) * sizeof(uint8_t)));
+				if (data == NULL) {
+					return SQLITE_NOMEM;
+				}
+				data[par_point_type_length] = 0;
+				if (binstream_nread_u8(stream, data, par_point_type_length) != SQLITE_OK) {
+					if (error) {
+						error_append(error, "Error reading parametric point type");
+					}
+					sqlite3_free(data);
+					return SQLITE_IOERR;
+				}
+				res = consumer->data(consumer, header, par_point_type_length, data, error);
+				sqlite3_free(data);
+				if (res != SQLITE_OK) {
+					return res;
+				}
+			}
+
+			uint32_t par_point_name_length;
+			if (binstream_read_u32(stream, &par_point_name_length) != SQLITE_OK) {
+				if (error) {
+					error_append(error, "Error reading parametric point name length");
+				}
+				return SQLITE_IOERR;
+			}
+			if (par_point_name_length >= 0) {
+				uint8_t *data = (uint8_t *)sqlite3_malloc((int)((par_point_name_length + 1) * sizeof(uint8_t)));
+				if (data == NULL) {
+					return SQLITE_NOMEM;
+				}
+				data[par_point_name_length] = 0;
+				if (binstream_nread_u8(stream, data, par_point_name_length) != SQLITE_OK) {
+					if (error) {
+						error_append(error, "Error reading parametric point name");
+					}
+					sqlite3_free(data);
+					return SQLITE_IOERR;
+				}
+				res = consumer->data(consumer, header, par_point_name_length, data, error);
+				sqlite3_free(data);
+				if (res != SQLITE_OK) {
+					return res;
+				}
+			}
+		}
+	}
+
+	return SQLITE_OK;
 }
 
 static int read_linearring(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, errorstream_t *error) {
@@ -541,27 +636,165 @@ static int read_annotation(binstream_t *stream, wkb_dialect dialect, const geom_
 	uint32_t point_count;
 	if (binstream_read_u32(stream, &point_count) != SQLITE_OK) {
 		if (error) {
-			error_append(error, "Error reading line string point count");
+			error_append(error, "Error reading annotation element count");
 		}
 		return SQLITE_IOERR;
 	}
 
-	read_points(stream, dialect, consumer, header, point_count, error);
+	for (uint32_t i = 0; i < point_count; i++) {
+		int res = read_point(stream, dialect, consumer, header, error);
+		if (res != SQLITE_OK) {
+			return res;
+		}
 
-	if (stream->position < stream->capacity)
-	{
-		uint32_t nData_count;
-		binstream_read_u32(stream, &nData_count);
-		if (nData_count > 0)
-		{
-			uint8_t *data = (uint8_t *)sqlite3_malloc((int)((nData_count+1) * sizeof(uint8_t)));
-			if (data == NULL) {
-				return SQLITE_NOMEM;
+		if (consumer->data) {
+			uint32_t annotation_length;
+			if (binstream_read_u32(stream, &annotation_length) != SQLITE_OK) {
+				if (error) {
+					error_append(error, "Error reading annotation length");
+				}
+				return SQLITE_IOERR;
 			}
-			data[nData_count] = 0;
-			binstream_nread_u8(stream, data, nData_count);
-			consumer->data(consumer, header, nData_count, data, error);
-			sqlite3_free(data);
+			if (annotation_length >= 0) {
+				uint8_t *data = (uint8_t *)sqlite3_malloc((int)((annotation_length + 1) * sizeof(uint8_t)));
+				if (data == NULL) {
+					return SQLITE_NOMEM;
+				}
+				data[annotation_length] = 0;
+				if (binstream_nread_u8(stream, data, annotation_length) != SQLITE_OK) {
+					if (error) {
+						error_append(error, "Error reading annotation");
+					}
+					sqlite3_free(data);
+					return SQLITE_IOERR;
+				}
+				res = consumer->data(consumer, header, annotation_length, data, error);
+				sqlite3_free(data);
+				if (res != SQLITE_OK) {
+					return res;
+				}
+			}
+		}
+	}
+
+	return SQLITE_OK;
+}
+
+static int read_parametricpoint(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, errorstream_t *error) {
+	uint32_t point_count;
+	if (binstream_read_u32(stream, &point_count) != SQLITE_OK) {
+		if (error) {
+			error_append(error, "Error reading parametric point element count");
+		}
+		return SQLITE_IOERR;
+	}
+
+	return read_par_points(stream, dialect, consumer, header, point_count, error);
+}
+
+static int read_parametriclinearring(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, errorstream_t *error) {
+	int result = SQLITE_OK;
+
+	uint32_t point_count;
+	result = binstream_read_u32(stream, &point_count);
+	if (result != SQLITE_OK) {
+		if (error) {
+			error_append(error, "Error reading parametric linear ring element count");
+		}
+		goto exit;
+	}
+
+	geom_header_t ring_header;
+	ring_header.geom_type = GEOM_PARAMETRICLINESTRING;
+	ring_header.coord_size = header->coord_size;
+	ring_header.coord_type = header->coord_type;
+	result = consumer->begin_geometry(consumer, &ring_header, error);
+	if (result != SQLITE_OK) {
+		goto exit;
+	}
+
+	result = read_par_points(stream, dialect, consumer, &ring_header, point_count, error);
+	if (result != SQLITE_OK) {
+		goto exit;
+	}
+
+	result = consumer->end_geometry(consumer, &ring_header, error);
+
+exit:
+	return result;
+}
+
+static int read_parametriclinestring(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, errorstream_t *error) {
+	uint32_t point_count;
+	if (binstream_read_u32(stream, &point_count) != SQLITE_OK) {
+		if (error) {
+			error_append(error, "Error reading parametric line string element count");
+		}
+		return SQLITE_IOERR;
+	}
+
+	return read_par_points(stream, dialect, consumer, header, point_count, error);
+}
+
+static int read_parametricpolygon(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, errorstream_t *error) {
+	uint32_t ring_count;
+	if (binstream_read_u32(stream, &ring_count) != SQLITE_OK) {
+		if (error) {
+			error_append(error, "Error reading polygon ring count");
+		}
+		return SQLITE_IOERR;
+	}
+
+	for (uint32_t i = 0; i < ring_count; i++) {
+		if (read_parametriclinearring(stream, dialect, consumer, header, error) != SQLITE_OK) {
+			return SQLITE_IOERR;
+		}
+	}
+	return SQLITE_OK;
+}
+
+static int read_parametricannotation(binstream_t *stream, wkb_dialect dialect, const geom_consumer_t *consumer, const geom_header_t *header, errorstream_t *error) {
+	uint32_t point_count;
+	if (binstream_read_u32(stream, &point_count) != SQLITE_OK) {
+		if (error) {
+			error_append(error, "Error reading parametric annotation element count");
+		}
+		return SQLITE_IOERR;
+	}
+
+	for (uint32_t i = 0; i < point_count; i++) {
+		int res = read_par_points(stream, dialect, consumer, header, 1, error);
+		if (res != SQLITE_OK) {
+			return res;
+		}
+
+		if (consumer->data) {
+			uint32_t par_annotation_length;
+			if (binstream_read_u32(stream, &par_annotation_length) != SQLITE_OK) {
+				if (error) {
+					error_append(error, "Error reading parametric annotation length");
+				}
+				return SQLITE_IOERR;
+			}
+			if (par_annotation_length >= 0) {
+				uint8_t *data = (uint8_t *)sqlite3_malloc((int)((par_annotation_length + 1) * sizeof(uint8_t)));
+				if (data == NULL) {
+					return SQLITE_NOMEM;
+				}
+				data[par_annotation_length] = 0;
+				if (binstream_nread_u8(stream, data, par_annotation_length) != SQLITE_OK) {
+					if (error) {
+						error_append(error, "Error reading parametric annotation");
+					}
+					sqlite3_free(data);
+					return SQLITE_IOERR;
+				}
+				res = consumer->data(consumer, header, par_annotation_length, data, error);
+				sqlite3_free(data);
+				if (res != SQLITE_OK) {
+					return res;
+				}
+			}
 		}
 	}
 
@@ -604,8 +837,20 @@ static int read_geometry(binstream_t *stream, wkb_dialect dialect, geom_consumer
       read_body = read_curvepolygon;
       break;
 	case GEOM_ANNOTATION:
-		read_body = read_annotation;
-		break;
+	  read_body = read_annotation;
+	  break;
+	case GEOM_PARAMETRICPOINT:
+	  read_body = read_parametricpoint;
+	  break;
+	case GEOM_PARAMETRICLINESTRING:
+	  read_body = read_parametriclinestring;
+	  break;
+	case GEOM_PARAMETRICPOLYGON:
+	  read_body = read_parametricpolygon;
+	  break;
+	case GEOM_PARAMETRICANNOTATION:
+	  read_body = read_parametricannotation;
+	  break;
     default:
       if (error) {
         error_append(error, "Unsupported geometry type (geomio): %d", header->geom_type);
@@ -689,6 +934,7 @@ static int wkb_begin_geometry(const geom_consumer_t *consumer, const geom_header
       wkb_header_size = 5;
       break;
     case GEOM_LINEARRING:
+	case GEOM_PARAMETRICLINESTRING:
       if (writer->offset == 0) {
         // A linear ring as root object does not exist in WKB; we encode it as a line string
         // Need to leave more room for a line string header
@@ -750,7 +996,7 @@ static int wkb_end_geometry(const geom_consumer_t *consumer, const geom_header_t
   size_t current_pos = binstream_position(stream);
   size_t children = writer->children[writer->offset];
 
-  if (header->geom_type == GEOM_LINEARRING && writer->offset > 0) {
+  if ((header->geom_type == GEOM_LINEARRING || header->geom_type == GEOM_PARAMETRICLINESTRING) && writer->offset > 0) {
     size_t start = writer->start[writer->offset];
     result = binstream_seek(stream, start);
     if (result != SQLITE_OK) {
@@ -815,8 +1061,20 @@ static int wkb_end_geometry(const geom_consumer_t *consumer, const geom_header_t
         geom_type = WKB_CURVEPOLYGON;
         break;
 	  case GEOM_ANNOTATION:
-		  geom_type = WKB_ANNOTATION;
-		  break;
+		geom_type = WKB_ANNOTATION;
+		break;
+	  case GEOM_PARAMETRICPOINT:
+		geom_type = WKB_PARAMETRICPOINT;
+		break;
+	  case GEOM_PARAMETRICLINESTRING:
+		geom_type = WKB_PARAMETRICLINESTRING;
+		break;
+	  case GEOM_PARAMETRICPOLYGON:
+		geom_type = WKB_PARAMETRICPOLYGON;
+		break;
+	  case GEOM_PARAMETRICANNOTATION:
+		geom_type = WKB_PARAMETRICANNOTATION;
+		break;
       default:
         if (error) {
           error_append(error, "Unsupported geometry type: %d", header->geom_type);

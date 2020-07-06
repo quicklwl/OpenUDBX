@@ -95,9 +95,25 @@ typedef enum {
   GEOM_LINEARRING = 999,
 
   /**
-  * Annotation    supermap extend  
+  * Annotation	supermap extend  
   */
   GEOM_ANNOTATION = 900,
+  /**
+  * Parametric point	supermap extend
+  */
+  GEOM_PARAMETRICPOINT = 901,
+  /**
+  * Parametric line string	supermap extend
+  */
+  GEOM_PARAMETRICLINESTRING = 902,
+  /**
+  * Parametric polygon	supermap extend
+  */
+  GEOM_PARAMETRICPOLYGON = 903,
+  /**
+  * Parametric annotation	supermap extend
+  */
+  GEOM_PARAMETRICANNOTATION = 904,
 
 } geom_type_t;
 
