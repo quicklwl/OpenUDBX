@@ -19,7 +19,7 @@ select GPKG_InitSpatialMetaData();
 create table province(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL);
 
 --添加空间字段
-select AddGeometryColumn('province','geom','annotation',4326);
+select AddGeometryColumn('province','geom','annotation',4326,0,0);
 
 --写入数据
 insert into province(geom) values(ST_GeomFromText('ANNOTATION(116.400 39.900 "北京")', 4326));
@@ -49,7 +49,7 @@ select st_astext(geom) from province where province.id in (select rtree_province
 create table province1(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL);
 
 --添加空间字段
-select AddGeometryColumn('province1','geom','parametricpoint',4326);
+select AddGeometryColumn('province1','geom','parametricpoint',4326,1,0);
 
 --写入数据
 insert into province1(geom) values(ST_GeomFromText('PARAMETRICPOINT Z (116.4 39.9 1.0 "16" "北京")', 4326));
@@ -66,7 +66,7 @@ insert into province1(geom) values(ST_GeomFromText('PARAMETRICPOINT Z (121.47 31
 create table province2(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL);
 
 --添加空间字段
-select AddGeometryColumn('province2','geom','parametriclinestring',4326);
+select AddGeometryColumn('province2','geom','parametriclinestring',4326,1,0);
 
 --写入数据
 insert into province2(geom) values(ST_GeomFromText('PARAMETRICLINESTRING Z (116.4 39.9 1.0 "16" "北京", 117.2 39.13 1.0 "16" "天津")', 4326));
@@ -83,7 +83,7 @@ insert into province2(geom) values(ST_GeomFromText('PARAMETRICLINESTRING Z (121.
 create table province3(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL);
 
 --添加空间字段
-select AddGeometryColumn('province3','geom','parametricpolygon',4326);
+select AddGeometryColumn('province3','geom','parametricpolygon',4326,1,0);
 
 --写入数据
 insert into province3(geom) values(ST_GeomFromText('PARAMETRICPOLYGON Z ((116.4 39.9 1.0 "16" "北京", 118.4 39.9 1.0 "16" "", 117.4 40.9 1.0 "16" "", 116.4 39.9 1.0 "16" "北京"))', 4326));
@@ -100,7 +100,7 @@ insert into province3(geom) values(ST_GeomFromText('PARAMETRICPOLYGON Z ((115.4 
 create table province4(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL);
 
 --添加空间字段
-select AddGeometryColumn('province4','geom','parametricannotation',4326);
+select AddGeometryColumn('province4','geom','parametricannotation',4326,1,0);
 
 --写入数据
 insert into province4(geom) values(ST_GeomFromText('PARAMETRICANNOTATION Z (116.4 39.9 1.0 "16" "北京" "北京")', 4326));
